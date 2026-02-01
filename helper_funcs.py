@@ -49,27 +49,39 @@ def count_in_region(markov_order,file_path,chr_id,str_idx,end_idx):
             
     return counts
 
+def stripped_df(tsv_file_path, 
+                tf_id,
+                bclass, 
+                tf_list = ['EP300','CTCF','ATAC','REST']):
+    
+    df = load_tsv_file(tsv_file_path)
+    if bclass != None:
+        target_df = df[df[f'{tf_id}'] == f'{bclass}']
+    else:
+        target_df = df
+    
+    cols_to_drop = [tf for tf in tf_list if tf != tf_id]
+
+    target_df = target_df.drop(columns=cols_to_drop)
+
+    return target_df
+
+
 def construct_transition_matrix(markov_order,
                                 fasta_file_path, 
-                                tsv_file_path, 
+                                target_df, 
                                 chr_id,
                                 tf_id, #Name of Transcription Factor
                                 bclass, #Bound (B) or Unbound (B)
                                 tf_list=['EP300','CTCF','ATAC','REST']):
 
-    df = load_tsv_file(f'{tsv_file_path}')
-    target_df = df[df[f'{tf_id}'] == f'{bclass}']
-    cols_to_drop = [tf for tf in tf_list if tf != tf_id]
-    target_df = target_df.drop(columns=cols_to_drop)
-
-    print(target_df)
 
     inp_bases = generate_in_seqs(markov_order)
     out_bases = ['A','T','G','C']
 
     total_counts = {f'{i_base}_{o_base}' : 0 for i_base in inp_bases for o_base in out_bases}
 
-    for row in tqdm(target_df.itertuples(), total=len(target_df), desc="Processing regions"):
+    for row in tqdm(target_df.itertuples(), total=len(target_df), desc="Constructing Transition Matrices"):
         start = row.start
         end = row.end
 
@@ -104,9 +116,70 @@ def log_odds_single(inbase,outbase, bmatrix, umatrix):
 
     return np.log(b_prob/u_prob)
 
-def log_odds_total(binding_df,fasta_file_path, bmatrix, umatrix):
+def log_odds_total(markov_order, fasta_file_path, chr_id, str_idx, end_idx, bmatrix, umatrix):
 
     score = 0.0
+
+    region = Fasta(f"{fasta_file_path}")
+
+    for i in range(str_idx-1,end_idx,markov_order):
+
+        in_bite = str(region[f'{chr_id}'][i:i+markov_order]).upper()
+        out_bite = str(region[f'{chr_id}'][i+markov_order:i+markov_order+1]).upper()
+
+        if ('N' in in_bite) or ('N' in out_bite):
+            continue
+
+        score += log_odds_single(inbase=in_bite,outbase=out_bite,bmatrix=bmatrix,umatrix=umatrix)
+
+    return score
+
+def binding_prob_database(markov_order,tf_data,fasta_file_path,chr_id,bmatrix,umatrix):
+
+    bprob_df = tf_data.copy(deep=True)
+
+    bprobs_list = []
+
+    for row in tqdm(tf_data.itertuples(), total=len(tf_data), desc="Calculating Scores"):
+
+        start = row.start
+        end = row.end
+
+        bprobs_list.append(log_odds_total(markov_order=markov_order,
+                                          fasta_file_path=fasta_file_path,
+                                          chr_id=chr_id,
+                                          str_idx=start,
+                                          end_idx=end,
+                                          bmatrix=bmatrix,
+                                          umatrix=umatrix))
+        
+    bprob_df[f'Score_{markov_order}'] = bprobs_list
+
+    return bprob_df
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
