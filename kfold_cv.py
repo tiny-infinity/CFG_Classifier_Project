@@ -124,7 +124,7 @@ def single_pair_test(args):
     print(f"[Process {pid}] Finished Fold {fold_idx + 1}. Time: {results['Time_Sec']}s")
     return results
 
-def run_kfold_parallel(tsv_path, fasta_path, tf_id, chr_id, markov_order, k=10):
+def run_kfold_parallel(tsv_path, fasta_path, tf_id, chr_id, markov_order, k=10, num_cpus=None):
 
     """
     Runs k-fold cross-validation in parallel.
@@ -135,6 +135,7 @@ def run_kfold_parallel(tsv_path, fasta_path, tf_id, chr_id, markov_order, k=10):
         chr_id (str) : Chromosome ID
         markov_order (int) : Markov Order
         k (int) : Number of folds
+        num_cpus(int) : Nuumber of cores to be utilized for parallel processing. Uses all available cores if set to None
     Output:
         results_df (DataFrame) : DataFrame containing results for each fold"""
     
@@ -142,18 +143,19 @@ def run_kfold_parallel(tsv_path, fasta_path, tf_id, chr_id, markov_order, k=10):
     partitions = k_fold_partition(tsv_path, k)
     ds_pairs = divide_datasets(partitions)
     
+    effective_cpus = num_cpus if num_cpus is not None else os.cpu_count()
     # 2. Prepare arguments for parallel workers
     # We pack everything into a tuple so we can use map()
     tasks = []
     for i, pair in enumerate(ds_pairs):
         tasks.append((pair, tf_id, chr_id, fasta_path, markov_order,k, i))
 
-    print(f"\n--- Starting Parallel Execution on {os.cpu_count()} Cores ---\n")
+    print(f"\n--- Starting Parallel Execution on {effective_cpus} Cores ---\n")
     
     results = []
     
     # 3. Parallel Execution
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus) as executor:
         # map returns results in the order they were started
         for res in executor.map(single_pair_test, tasks):
             results.append(res)
