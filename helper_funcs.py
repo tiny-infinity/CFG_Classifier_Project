@@ -51,7 +51,7 @@ def count_in_region(markov_order,file_path,chr_id,str_idx,end_idx):
 
 def stripped_df(tsv_file_path, 
                 tf_id,
-                bclass, 
+                bclass, #None if you want both U and B, specify if you want only one
                 tf_list = ['EP300','CTCF','ATAC','REST']):
     
     df = load_tsv_file(tsv_file_path)
@@ -156,6 +156,34 @@ def binding_prob_database(markov_order,tf_data,fasta_file_path,chr_id,bmatrix,um
     bprob_df[f'Score_{markov_order}'] = bprobs_list
 
     return bprob_df
+
+
+
+
+
+
+
+
+
+
+    
+
+    
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
