@@ -2,6 +2,13 @@ import pandas as pd
 import numpy as np
 
 def confusion_matrix(proc_df,tf_id):
+    """Builds confusion matrix from processed dataframe
+    Args:
+        proc_df (DataFrame) : Processed Dataframe with actual and predicted classes
+        tf_id (str) : Transcription Factor ID column name
+    Output:
+        conf_matrix (dict) : Confusion Matrix with TP, FP, TN, FN counts
+    """
 
     actual = proc_df[tf_id].values
     pred = proc_df[f'Pred_{tf_id}'].values
@@ -24,9 +31,27 @@ def specificity(conf_matrix):
 
 
 def thresholds(score_df,markov_order):
+    """
+    Generates sorted unique thresholds from dataframe with scores.
+    Args:
+        score_df (DataFrame) : DataFrame containing scores
+        markov_order (int) : Markov Order for score column
+    Output:
+        thresholds (ndarray) : Sorted unique thresholds
+    """
     return np.sort(score_df[f'Score_{markov_order}'].unique())
 
 def classification_results(sorted_df,threshold,tf_id,markov_order):
+    """
+    Classifies regions as U or B for a given threshold.
+    Args:
+        sorted_df (DataFrame) : DataFrame containing scores and actual classes
+        threshold (float) : Threshold for classification
+        tf_id (str) : Transcription Factor ID column name
+        markov_order (int) : Markov Order for score column
+    Output:
+        results (dict) : Dictionary containing Precision, Recall and Specificity
+    """
 
     scores = sorted_df[f'Score_{markov_order}'].values
     actuals = sorted_df[tf_id].values
@@ -47,36 +72,19 @@ def classification_results(sorted_df,threshold,tf_id,markov_order):
     
     return results
 
-def precision_recall(test_res_df,chr_id,tf_id,markov_order):
-
-    p_thresholds = thresholds(score_df=test_res_df,
-                              markov_order=markov_order)
-    
-    if len(p_thresholds) > 2000:
-        p_thresholds = np.linspace(p_thresholds.min(), p_thresholds.max(), 2000)
-    
-    pr_df = pd.DataFrame()
-
-    prec_list = []
-    recl_list = []
-
-    for trld in p_thresholds:
-        results = classification_results(test_res_df,
-                                         threshold=trld,
-                                         tf_id=tf_id,
-                                         markov_order=markov_order)
-        prec_list.append(results['Precision'])
-        recl_list.append(results['Recall'])
-
-    pr_df['Threshold'] = p_thresholds
-    pr_df['Precision'] = prec_list
-    pr_df['Recall'] = recl_list
-
-    return pr_df
 
 def prec_rec_spec(test_res_df,chr_id,tf_id,markov_order):
 
-    #print("Calculating Precision, Recall and Specificity...")
+    """
+    Generates Precision-Recall-Specificity dataframe from test results.
+    Args:
+        test_res_df (DataFrame) : DataFrame containing test results with scores
+        chr_id (str) : Chromosome ID
+        tf_id (str) : Transcription Factor ID column name
+        markov_order (int) : Markov Order for score column
+    Output:
+        prs_df (DataFrame) : DataFrame containing Precision, Recall and Specificity at various thresholds
+    """
 
     p_thresholds = thresholds(score_df=test_res_df,
                               markov_order=markov_order)
@@ -105,35 +113,15 @@ def prec_rec_spec(test_res_df,chr_id,tf_id,markov_order):
 
     return prs_df
 
-def reciever_operator(test_res_df,chr_id,tf_id,markov_order):
-
-    p_thresholds = thresholds(score_df=test_res_df,
-                              markov_order=markov_order)
-    
-    ro_df = pd.DataFrame()
-
-    sens_list = []
-    spec_list = []
-
-    for trld in p_thresholds:
-
-        results = classification_results(test_res_df,
-                                         threshold=trld,
-                                         tf_id=tf_id,
-                                         markov_order=markov_order)
-        
-        sens_list.append(results['Recall'])
-        spec_list.append(1-results['Specificity'])
-
-    ro_df['Threshold'] = p_thresholds
-    ro_df['Precision'] = sens_list
-    ro_df['Recall'] = spec_list
-
-    return ro_df
-
 
 def AU_PRC(prs_vals):
-    #print("Calculating auPRC...")
+    """
+    Calculates Area Under Precision-Recall Curve
+    Args:
+        prs_vals (DataFrame) : DataFrame containing Precision and Recall values
+    Output:
+        au_prc (float) : Area Under Precision-Recall Curve
+    """
 
     prec_vals = prs_vals['Precision'].to_numpy()
     recall_vals = prs_vals['Recall'].to_numpy()
@@ -142,7 +130,13 @@ def AU_PRC(prs_vals):
     return np.trapezoid(prec_vals[sorted_indices], recall_vals[sorted_indices])
 
 def AU_ROC(prs_vals):
-    #print("Calculating auROC...")
+    """
+    Calculates Area Under Receiver-Operating Characteristic Curve
+    Args:
+        prs_vals (DataFrame) : DataFrame containing Specificity and Recall values
+    Output:
+        au_roc (float) : Area Under Receiver Operating Characteristic Curve
+    """
     recall_vals = prs_vals['Recall'].to_numpy()
     spec_vals = prs_vals['Specificity'].to_numpy()
     fpr = 1 - spec_vals

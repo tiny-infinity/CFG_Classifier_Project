@@ -17,6 +17,14 @@ def load_tsv_file(file_path):
     return chrom_df
 
 def generate_in_seqs(markov_order):
+    """
+    Generates all possible combinations of 'from' sequences of given Markov order
+    Args:
+        markov_order(int) : Order of Markov Model 
+    Output:
+        seqs (list) : List of all possible in-sequences of given order
+    """
+
     bases = ['A','T','G','C']
     seqs = []
 
@@ -27,6 +35,18 @@ def generate_in_seqs(markov_order):
     return seqs
 
 def count_in_region(markov_order,fasta_obj,chr_id,str_idx,end_idx):
+
+    """
+    Counts occurrences of each possible transition in a given region
+    Args:
+        markov_order(int) : Order of Markov Model
+        fasta_obj (Fasta Object) : Fasta object of genome
+        chr_id (str) : Chromosome ID
+        str_idx (int) : Start Index of region (1-based)
+        end_idx (int) : End Index of region (1-based, inclusive)
+    Output:
+        counts (dict) : Dictionary of counts of each transition in the region
+    """
 
     inp_bases = generate_in_seqs(markov_order)
     out_bases = ['A','T','G','C']
@@ -60,6 +80,17 @@ def stripped_df(df,
                 bclass, #None if you want both U and B, specify if you want only one
                 tf_list = ['EP300','CTCF','ATAC','REST']):
     
+    """
+    Strips dataframe to only necessary columns as specified by tf_id and bclass
+    Args:
+        df (DataFrame) : Original DataFrame
+        tf_id (str) : Transcription Factor ID -> enter the TF you want to analyze
+        bclass (str/None) : 'B' or 'U' or None -> specify if you want only regions where the TF is bound/unbound
+        tf_list (list) : List of all Transcription Factors in dataset
+    Output:
+        target_df (DataFrame) : Stripped DataFrame
+    """
+    
     if bclass != None:
         target_df = df[df[f'{tf_id}'] == f'{bclass}']
     else:
@@ -77,6 +108,18 @@ def construct_transition_matrix(markov_order,
                                 chr_id,
                                 tf_id, #Name of Transcription Factor
                                 tf_list=['EP300','CTCF','ATAC','REST']):
+    """
+    Constructs Transition Matrix for given Markov order from target dataframe
+    Args:
+        markov_order (int) : Order of Markov Model
+        fasta_file_path (str) : File Path of Fasta file
+        target_df (DataFrame) : DataFrame containing regions to build matrix from
+        chr_id (str) : Chromosome ID
+        tf_id (str) : Transcription Factor ID
+        tf_list (list) : List of all Transcription Factors in dataset
+    Output:
+        total_counts (dict) : Dictionary of transition probabilities
+    """
 
 
     inp_bases = generate_in_seqs(markov_order)
@@ -110,6 +153,14 @@ def construct_transition_matrix(markov_order,
     return total_counts
 
 def build_score_dict(bmatrix, umatrix):
+    """
+    Dictionary for faster lookup for log-odds scores
+    Args:
+        bmatrix (dict) : Transition probability matrix for Bound regions
+        umatrix (dict) : Transition probability matrix for Unbound regions
+    Output:
+        score_dict (dict) : Dictionary of log-odds scores for each transition
+    """
     score_dict = {}
     # Iterate over all keys present in the matrices
     for key in bmatrix.keys():
@@ -123,6 +174,13 @@ def log_odds_single(inbase,outbase, bmatrix, umatrix):
 
     """
     Returns log odd score for a single transition whatever
+    Args:
+        inbase (str) : 'From' sequence
+        outbase (str) : 'To' base
+        bmatrix (dict) : Transition probability matrix for Bound regions
+        umatrix (dict) : Transition probability matrix for Unbound regions
+    Output:
+        log_odds (float) : Log-Odds Score
     """
 
     b_prob = bmatrix.get(f'{inbase}_{outbase}', 1e-6) # Added safety get
@@ -130,6 +188,18 @@ def log_odds_single(inbase,outbase, bmatrix, umatrix):
     return np.log(b_prob/u_prob)
 
 def log_odds_total(markov_order, fasta_obj, chr_id, str_idx, end_idx, score_dict):
+    """
+    Calculates total log-odds score for a given region
+    Args:
+        markov_order (int) : Order of Markov Model
+        fasta_obj (Fasta Object) : Fasta object of genome
+        chr_id (str) : Chromosome ID
+        str_idx (int) : Start Index of region (1-based)
+        end_idx (int) : End Index of region (1-based, inclusive)
+        score_dict (dict) : Dictionary of log-odds scores for each transition
+    Output:
+        score (float) : Total log-odds score for the region
+    """
 
     score = 0.0
 
@@ -154,6 +224,18 @@ def log_odds_total(markov_order, fasta_obj, chr_id, str_idx, end_idx, score_dict
     return score
 
 def binding_prob_database(markov_order,tf_data,fasta_file_path,chr_id,bmatrix,umatrix):
+    """ 
+    Builds a database of binding probabilities for all regions in tf_data
+    Args:
+        markov_order (int) : Order of Markov Model
+        tf_data (DataFrame) : DataFrame containing regions to score
+        fasta_file_path (str) : File Path of Fasta file
+        chr_id (str) : Chromosome ID
+        bmatrix (dict) : Transition probability matrix for Bound regions
+        umatrix (dict) : Transition probability matrix for Unbound regions
+    Output:
+        bprob_df (DataFrame) : DataFrame with added column of binding scores
+    """
 
     bprob_df = tf_data.copy(deep=True)
     bprobs_list = []

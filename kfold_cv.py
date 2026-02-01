@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
 import helper_funcs as hf
 import testing_funcs as testf
 import concurrent.futures
@@ -9,6 +8,13 @@ import time
 import os
 
 def k_fold_partition(tsv_file_path, k):
+    """
+    Partitions the dataset into k folds for cross-validation.
+    Args:
+        tsv_file_path (str) : Path to the TSV data file
+        k (int) : Number of folds
+    Output:
+        list_of_dfs (list) : List of DataFrames for each fold"""
     print(f"Loading data from {tsv_file_path}...")
     df = hf.load_tsv_file(tsv_file_path)
     df = df.sample(frac=1, random_state=42).reset_index(drop=True)
@@ -18,6 +24,13 @@ def k_fold_partition(tsv_file_path, k):
     return list_of_dfs
 
 def divide_datasets(list_of_dfs):
+    """
+    Divides the list of DataFrames into training and testing pairs for k-fold CV.
+    Args:
+        list_of_dfs (list) : List of DataFrames for each fold
+    Output:
+        ds_pairs (list) : List of [training_set, testing_set] pairs for each fold
+    """
 
     k = len(list_of_dfs)
     ds_pairs = []
@@ -32,61 +45,22 @@ def divide_datasets(list_of_dfs):
 
     return ds_pairs
 
-def single_pair_test(ds_pair,tf_id,chr_id,fasta_file_path,markov_order):
-
-    training_set = ds_pair[0]
-    test_set = ds_pair[1]
-
-    #TRAINING
-
-    print(f"--- Processing Fold (Order {markov_order}) ---")
-
-    bound_df = hf.stripped_df(df=training_set,
-                              tf_id = tf_id,
-                              bclass='B'
-                              )
-    
-    unbound_df = hf.stripped_df(df=training_set,
-                              tf_id = tf_id,
-                              bclass='U'
-                              )
-    
-    b_matrix = hf.construct_transition_matrix(markov_order=markov_order,
-                                  fasta_file_path=f'{fasta_file_path}',
-                                  target_df=bound_df,
-                                  chr_id=f'{chr_id}',
-                                  tf_id=f'{tf_id}')
-    
-    u_matrix = hf.construct_transition_matrix(markov_order=markov_order,
-                                  fasta_file_path=f'{fasta_file_path}',
-                                  target_df=unbound_df,
-                                  chr_id=f'{chr_id}',
-                                  tf_id=f'{tf_id}')
-    
-    #TESTING
-    print("Beginning Testing...")
-
-    test_res_df = hf.binding_prob_database(markov_order=markov_order,
-                                           tf_data=test_set,
-                                           fasta_file_path=fasta_file_path,
-                                           chr_id=chr_id,
-                                           bmatrix=b_matrix,
-                                           umatrix=u_matrix)
-    
-    prs_vals = testf.prec_rec_spec(test_res_df=test_res_df,
-                                  chr_id = chr_id,
-                                  tf_id = tf_id,
-                                  markov_order=markov_order)
-    
-    results = {'AU_PRC':testf.AU_PRC(prs_vals=prs_vals),
-               'AU_ROC':testf.AU_ROC(prs_vals=prs_vals)}
-
-    print(f"Result: {results}")
-    return results
-
 def single_pair_test(args):
+        
+    """
+    Tests a single train-test pair for given parameters.
+    Also saves the result as a .csv file.
+    Args:
+        ds_pair (list) : [training_set, testing_set] DataFrames
+        tf_id (str) : Transcription Factor ID
+        chr_id (str) : Chromosome ID
+        fasta_file_path (str) : Path to the FASTA file
+        markov_order (int) : Markov Order
+    Output:
+        results (dict) : Dictionary containing AU_PRC and AU_ROC results
+    """
 
-    ds_pair,tf_id,chr_id,fasta_file_path,markov_order,fold_idx = args
+    ds_pair,tf_id,chr_id,fasta_file_path,markov_order,k,fold_idx = args
     training_set = ds_pair[0]
     test_set = ds_pair[1]
 
@@ -135,6 +109,8 @@ def single_pair_test(args):
                                   chr_id = chr_id,
                                   tf_id = tf_id,
                                   markov_order=markov_order)
+
+    prs_vals.to_csv(f'resultData/m{markov_order}k{k}f{fold_idx + 1}.csv', index=False)
     
     results = {
         'Fold': fold_idx + 1,
@@ -149,6 +125,18 @@ def single_pair_test(args):
     return results
 
 def run_kfold_parallel(tsv_path, fasta_path, tf_id, chr_id, markov_order, k=10):
+
+    """
+    Runs k-fold cross-validation in parallel.
+    Args:
+        tsv_path (str) : Path to the TSV data file
+        fasta_path (str) : Path to the FASTA file path
+        tf_id (str) : Transcription Factor ID
+        chr_id (str) : Chromosome ID
+        markov_order (int) : Markov Order
+        k (int) : Number of folds
+    Output:
+        results_df (DataFrame) : DataFrame containing results for each fold"""
     
     # 1. Prepare partitions 
     partitions = k_fold_partition(tsv_path, k)
@@ -158,7 +146,7 @@ def run_kfold_parallel(tsv_path, fasta_path, tf_id, chr_id, markov_order, k=10):
     # We pack everything into a tuple so we can use map()
     tasks = []
     for i, pair in enumerate(ds_pairs):
-        tasks.append((pair, tf_id, chr_id, fasta_path, markov_order, i))
+        tasks.append((pair, tf_id, chr_id, fasta_path, markov_order,k, i))
 
     print(f"\n--- Starting Parallel Execution on {os.cpu_count()} Cores ---\n")
     
@@ -179,26 +167,6 @@ def run_kfold_parallel(tsv_path, fasta_path, tf_id, chr_id, markov_order, k=10):
     
     return results_df
 
-
-if __name__ == "__main__":
-    # CONFIGURATION
-    TSV_PATH = 'projectData/chr1_200bp_bins.tsv'
-    FASTA_PATH = 'projectData/chr1.fa'
-    TF_ID = 'REST'
-    CHR_ID = 'chr1'
-    MARKOV_ORDER = 5
-    K_FOLDS = 10
-
-    # Run safely
-    try:
-        final_results = run_kfold_parallel(tsv_path=TSV_PATH, 
-                                           fasta_path=FASTA_PATH,
-                                           tf_id=TF_ID, 
-                                           chr_id=CHR_ID, 
-                                           markov_order=MARKOV_ORDER, 
-                                           k=K_FOLDS)
-    except Exception as e:
-        print(f"An error occurred: {e}")
 
 
 
