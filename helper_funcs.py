@@ -49,6 +49,7 @@ def count_in_region(markov_order,file_path,chr_id,str_idx,end_idx):
             
     return counts
 
+"""
 def stripped_df(tsv_file_path, 
                 tf_id,
                 bclass, #None if you want both U and B, specify if you want only one
@@ -65,14 +66,30 @@ def stripped_df(tsv_file_path,
     target_df = target_df.drop(columns=cols_to_drop)
 
     return target_df
+"""
 
+def stripped_df(df, 
+                tf_id,
+                bclass, #None if you want both U and B, specify if you want only one
+                tf_list = ['EP300','CTCF','ATAC','REST']):
+    
+    if bclass != None:
+        target_df = df[df[f'{tf_id}'] == f'{bclass}']
+    else:
+        target_df = df
+    
+    cols_to_drop = [tf for tf in tf_list if tf != tf_id]
+
+    target_df = target_df.drop(columns=cols_to_drop)
+
+    return target_df
 
 def construct_transition_matrix(markov_order,
                                 fasta_file_path, 
                                 target_df, 
                                 chr_id,
                                 tf_id, #Name of Transcription Factor
-                                bclass, #Bound (B) or Unbound (B)
+                        
                                 tf_list=['EP300','CTCF','ATAC','REST']):
 
 
@@ -100,7 +117,7 @@ def construct_transition_matrix(markov_order,
             total += total_counts[f'{ibase}_{obase}']
 
         for obase in out_bases:
-            total_counts[f'{ibase}_{obase}'] = total_counts[f'{ibase}_{obase}']/total
+            total_counts[f'{ibase}_{obase}'] = (total_counts[f'{ibase}_{obase}']+1)/(total + 4) #Pseudocounts added
 
     return total_counts
 

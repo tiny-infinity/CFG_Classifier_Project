@@ -74,6 +74,37 @@ def precision_recall(test_res_df,chr_id,tf_id,markov_order):
 
     return pr_df
 
+def prec_rec_spec(test_res_df,chr_id,tf_id,markov_order):
+
+    p_thresholds = thresholds(score_df=test_res_df,
+                              chr_id = chr_id,
+                              tf_id = tf_id,
+                              markov_order=markov_order)
+    
+    prs_df = pd.DataFrame()
+
+    prec_list = []
+    recl_list = []
+    spec_list = []
+
+    for trld in p_thresholds:
+
+        results = classification_results(test_res_df,
+                                         threshold=trld,
+                                         tf_id=tf_id,
+                                         markov_order=markov_order)
+        
+        prec_list.append(results['Precision'])
+        recl_list.append(results['Recall'])
+        spec_list.append(results['Specificity'])
+
+    prs_df['Threshold'] = p_thresholds
+    prs_df['Precision'] = prec_list
+    prs_df['Recall'] = recl_list
+    prs_df['Specificity'] = specificity
+
+    return prs_df
+
 def reciever_operator(test_res_df,chr_id,tf_id,markov_order):
 
     p_thresholds = thresholds(score_df=test_res_df,
@@ -102,3 +133,21 @@ def reciever_operator(test_res_df,chr_id,tf_id,markov_order):
 
     return ro_df
 
+
+def AU_PRC(prs_vals):
+
+    prec_vals = prs_vals['Precision'].to_numpy()
+    recall_vals = prs_vals['Recall'].to_numpy()
+
+    auprc = np.trapezoid(prec_vals,recall_vals)
+
+    return auprc
+
+def AU_ROC(prs_vals):
+
+    recall_vals = prs_vals['Recall'].to_numpy()
+    spec_vals = prs_vals['Specificity'].to_numpy()
+
+    auroc = np.trapezoid(recall_vals,spec_vals)
+
+    return auroc
