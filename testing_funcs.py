@@ -3,21 +3,15 @@ import numpy as np
 
 def confusion_matrix(proc_df,tf_id):
 
-    conf_matrix = {'TP':0,'FP':0,'TN':0,'FN':0}
+    actual = proc_df[tf_id].values
+    pred = proc_df[f'Pred_{tf_id}'].values
 
-    for row in proc_df.itertuples():
-        actual = getattr(row, tf_id)
-        pred = getattr(row, f'Pred_{tf_id}')
-        if actual == 'B' and pred == 'B':
-            conf_matrix['TP'] += 1
-        elif actual == 'U' and pred == 'B':
-            conf_matrix['FP'] += 1
-        elif actual == 'U' and pred == 'U':
-            conf_matrix['TN'] += 1
-        elif actual == 'B' and pred == 'U':
-            conf_matrix['FN'] += 1
+    TP = ((actual == 'B') & (pred == 'B')).sum()
+    FP = ((actual == 'U') & (pred == 'B')).sum()
+    TN = ((actual == 'U') & (pred == 'U')).sum()
+    FN = ((actual == 'B') & (pred == 'U')).sum()
 
-    return conf_matrix
+    return {'TP': TP, 'FP': FP, 'TN': TN, 'FN': FN}
 
 def precision(conf_matrix):
     return conf_matrix['TP']/(conf_matrix['TP']+conf_matrix['FP'])
@@ -29,16 +23,23 @@ def specificity(conf_matrix):
     return conf_matrix['TN']/(conf_matrix['TN']+conf_matrix['FP'])
 
 
-def thresholds(score_df,markov_order,tf_id):
-    sorted_df = score_df.sort_values(by=f'Score_{markov_order}')
-    return sorted_df[f'Score_{markov_order}'].to_numpy()
+def thresholds(score_df,markov_order):
+    return np.sort(score_df[f'Score_{markov_order}'].unique())
 
 def classification_results(sorted_df,threshold,tf_id,markov_order):
 
-    res_df = sorted_df.copy(deep=True)
-    res_df[f'Pred_{tf_id}'] = np.where(res_df[f'Score_{markov_order}']>=threshold, 'B', 'U')
+    scores = sorted_df[f'Score_{markov_order}'].values
+    actuals = sorted_df[tf_id].values
 
-    conf_matrix = confusion_matrix(proc_df=res_df,tf_id=tf_id)
+    preds = np.where(scores >= threshold, 'B', 'U')
+
+    #print("Building confusion matrix...")
+    TP = ((actuals == 'B') & (preds == 'B')).sum()
+    FP = ((actuals == 'U') & (preds == 'B')).sum()
+    TN = ((actuals == 'U') & (preds == 'U')).sum()
+    FN = ((actuals == 'B') & (preds == 'U')).sum()
+
+    conf_matrix = {'TP': TP, 'FP': FP, 'TN': TN, 'FN': FN}
 
     results = { 'Precision' : precision(conf_matrix=conf_matrix),
                'Recall' : recall(conf_matrix=conf_matrix),
@@ -49,9 +50,10 @@ def classification_results(sorted_df,threshold,tf_id,markov_order):
 def precision_recall(test_res_df,chr_id,tf_id,markov_order):
 
     p_thresholds = thresholds(score_df=test_res_df,
-                              chr_id = chr_id,
-                              tf_id = tf_id,
                               markov_order=markov_order)
+    
+    if len(p_thresholds) > 2000:
+        p_thresholds = np.linspace(p_thresholds.min(), p_thresholds.max(), 2000)
     
     pr_df = pd.DataFrame()
 
@@ -59,12 +61,10 @@ def precision_recall(test_res_df,chr_id,tf_id,markov_order):
     recl_list = []
 
     for trld in p_thresholds:
-
         results = classification_results(test_res_df,
                                          threshold=trld,
                                          tf_id=tf_id,
                                          markov_order=markov_order)
-        
         prec_list.append(results['Precision'])
         recl_list.append(results['Recall'])
 
@@ -76,9 +76,9 @@ def precision_recall(test_res_df,chr_id,tf_id,markov_order):
 
 def prec_rec_spec(test_res_df,chr_id,tf_id,markov_order):
 
+    #print("Calculating Precision, Recall and Specificity...")
+
     p_thresholds = thresholds(score_df=test_res_df,
-                              chr_id = chr_id,
-                              tf_id = tf_id,
                               markov_order=markov_order)
     
     prs_df = pd.DataFrame()
@@ -101,15 +101,13 @@ def prec_rec_spec(test_res_df,chr_id,tf_id,markov_order):
     prs_df['Threshold'] = p_thresholds
     prs_df['Precision'] = prec_list
     prs_df['Recall'] = recl_list
-    prs_df['Specificity'] = specificity
+    prs_df['Specificity'] = spec_list
 
     return prs_df
 
 def reciever_operator(test_res_df,chr_id,tf_id,markov_order):
 
     p_thresholds = thresholds(score_df=test_res_df,
-                              chr_id = chr_id,
-                              tf_id = tf_id,
                               markov_order=markov_order)
     
     ro_df = pd.DataFrame()
@@ -135,19 +133,19 @@ def reciever_operator(test_res_df,chr_id,tf_id,markov_order):
 
 
 def AU_PRC(prs_vals):
+    #print("Calculating auPRC...")
 
     prec_vals = prs_vals['Precision'].to_numpy()
     recall_vals = prs_vals['Recall'].to_numpy()
 
-    auprc = np.trapezoid(prec_vals,recall_vals)
-
-    return auprc
+    sorted_indices = np.argsort(recall_vals)
+    return np.trapezoid(prec_vals[sorted_indices], recall_vals[sorted_indices])
 
 def AU_ROC(prs_vals):
-
+    #print("Calculating auROC...")
     recall_vals = prs_vals['Recall'].to_numpy()
     spec_vals = prs_vals['Specificity'].to_numpy()
+    fpr = 1 - spec_vals
 
-    auroc = np.trapezoid(recall_vals,spec_vals)
-
-    return auroc
+    sorted_indices = np.argsort(fpr)
+    return np.trapezoid(recall_vals[sorted_indices], fpr[sorted_indices])

@@ -26,19 +26,25 @@ def generate_in_seqs(markov_order):
 
     return seqs
 
-def count_in_region(markov_order,file_path,chr_id,str_idx,end_idx):
+def count_in_region(markov_order,fasta_obj,chr_id,str_idx,end_idx):
 
     inp_bases = generate_in_seqs(markov_order)
     out_bases = ['A','T','G','C']
 
     counts = {f'{i_base}_{o_base}' : 0 for i_base in inp_bases for o_base in out_bases}
     
-    region = Fasta(f'{file_path}')
 
-    for i in range(str_idx-1,end_idx,markov_order):
+    try:
+        full_seq = str(fasta_obj[f'{chr_id}'][str_idx-1:end_idx]).upper()
+    except KeyError:
+        return counts
 
-        in_bite = str(region[f'{chr_id}'][i:i+markov_order]).upper()
-        out_bite = str(region[f'{chr_id}'][i+markov_order:i+markov_order+1]).upper()
+    seq_len = len(full_seq)
+
+    for i in range(seq_len - markov_order):
+
+        in_bite = full_seq[i:i+markov_order]
+        out_bite = full_seq[i+markov_order]
 
         if ('N' in in_bite) or ('N' in out_bite):
             continue
@@ -48,25 +54,6 @@ def count_in_region(markov_order,file_path,chr_id,str_idx,end_idx):
             counts[key] += 1
             
     return counts
-
-"""
-def stripped_df(tsv_file_path, 
-                tf_id,
-                bclass, #None if you want both U and B, specify if you want only one
-                tf_list = ['EP300','CTCF','ATAC','REST']):
-    
-    df = load_tsv_file(tsv_file_path)
-    if bclass != None:
-        target_df = df[df[f'{tf_id}'] == f'{bclass}']
-    else:
-        target_df = df
-    
-    cols_to_drop = [tf for tf in tf_list if tf != tf_id]
-
-    target_df = target_df.drop(columns=cols_to_drop)
-
-    return target_df
-"""
 
 def stripped_df(df, 
                 tf_id,
@@ -89,7 +76,6 @@ def construct_transition_matrix(markov_order,
                                 target_df, 
                                 chr_id,
                                 tf_id, #Name of Transcription Factor
-                        
                                 tf_list=['EP300','CTCF','ATAC','REST']):
 
 
@@ -98,12 +84,14 @@ def construct_transition_matrix(markov_order,
 
     total_counts = {f'{i_base}_{o_base}' : 0 for i_base in inp_bases for o_base in out_bases}
 
+    fasta_obj = Fasta(f'{fasta_file_path}')
+
     for row in tqdm(target_df.itertuples(), total=len(target_df), desc="Constructing Transition Matrices"):
         start = row.start
         end = row.end
 
         temp_counts = count_in_region(markov_order=markov_order,
-                                      file_path=fasta_file_path,
+                                      fasta_obj=fasta_obj,
                                       chr_id=chr_id,
                                       str_idx=start,
                                       end_idx=end)
@@ -121,6 +109,15 @@ def construct_transition_matrix(markov_order,
 
     return total_counts
 
+def build_score_dict(bmatrix, umatrix):
+    score_dict = {}
+    # Iterate over all keys present in the matrices
+    for key in bmatrix.keys():
+        b_prob = bmatrix.get(key, 1e-10) # Small float safety
+        u_prob = umatrix.get(key, 1e-10)
+        # Pre-calculate the log difference
+        score_dict[key] = np.log(b_prob / u_prob)
+    return score_dict
 
 def log_odds_single(inbase,outbase, bmatrix, umatrix):
 
@@ -128,34 +125,42 @@ def log_odds_single(inbase,outbase, bmatrix, umatrix):
     Returns log odd score for a single transition whatever
     """
 
-    b_prob = bmatrix[f'{inbase}_{outbase}']
-    u_prob = umatrix[f'{inbase}_{outbase}']
-
+    b_prob = bmatrix.get(f'{inbase}_{outbase}', 1e-6) # Added safety get
+    u_prob = umatrix.get(f'{inbase}_{outbase}', 1e-6)
     return np.log(b_prob/u_prob)
 
-def log_odds_total(markov_order, fasta_file_path, chr_id, str_idx, end_idx, bmatrix, umatrix):
+def log_odds_total(markov_order, fasta_obj, chr_id, str_idx, end_idx, score_dict):
 
     score = 0.0
 
-    region = Fasta(f"{fasta_file_path}")
+    try:
+        full_seq = str(fasta_obj[f'{chr_id}'][str_idx-1:end_idx]).upper()
+    except KeyError:
+        return 0.0
+        
+    
+    seq_len = len(full_seq)
 
-    for i in range(str_idx-1,end_idx,markov_order):
+    for i in range(seq_len - markov_order):
 
-        in_bite = str(region[f'{chr_id}'][i:i+markov_order]).upper()
-        out_bite = str(region[f'{chr_id}'][i+markov_order:i+markov_order+1]).upper()
+        in_bite = full_seq[i : i + markov_order]
+        out_bite = full_seq[i + markov_order]
 
         if ('N' in in_bite) or ('N' in out_bite):
             continue
 
-        score += log_odds_single(inbase=in_bite,outbase=out_bite,bmatrix=bmatrix,umatrix=umatrix)
+        score += score_dict.get(f'{in_bite}_{out_bite}', 0.0)
 
     return score
 
 def binding_prob_database(markov_order,tf_data,fasta_file_path,chr_id,bmatrix,umatrix):
 
     bprob_df = tf_data.copy(deep=True)
-
     bprobs_list = []
+
+    fasta_obj = Fasta(f"{fasta_file_path}")
+
+    score_dict = build_score_dict(bmatrix, umatrix)
 
     for row in tqdm(tf_data.itertuples(), total=len(tf_data), desc="Calculating Scores"):
 
@@ -163,12 +168,11 @@ def binding_prob_database(markov_order,tf_data,fasta_file_path,chr_id,bmatrix,um
         end = row.end
 
         bprobs_list.append(log_odds_total(markov_order=markov_order,
-                                          fasta_file_path=fasta_file_path,
+                                          fasta_obj=fasta_obj,
                                           chr_id=chr_id,
                                           str_idx=start,
                                           end_idx=end,
-                                          bmatrix=bmatrix,
-                                          umatrix=umatrix))
+                                          score_dict=score_dict))
         
     bprob_df[f'Score_{markov_order}'] = bprobs_list
 
