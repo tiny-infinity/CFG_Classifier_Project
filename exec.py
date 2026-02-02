@@ -6,7 +6,7 @@ FASTA_PATH = 'projectData/chr1.fa'
 TF_ID = 'REST'
 CHR_ID = 'chr1'
 NUM_CPUS = 6
-markov_orders = [i for i in range(0,11,1)]
+markov_orders = [i for i in range(7,11,1)]
 k_vals = [3,4,5]
 
 for mo in markov_orders:

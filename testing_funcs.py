@@ -89,6 +89,9 @@ def prec_rec_spec(test_res_df,chr_id,tf_id,markov_order):
     p_thresholds = thresholds(score_df=test_res_df,
                               markov_order=markov_order)
     
+    if len(p_thresholds)>2000:
+        p_thresholds = np.linspace(p_thresholds.min(), p_thresholds.max(),2000)
+    
     prs_df = pd.DataFrame()
 
     prec_list = []
@@ -127,7 +130,7 @@ def AU_PRC(prs_vals):
     recall_vals = prs_vals['Recall'].to_numpy()
 
     sorted_indices = np.argsort(recall_vals)
-    return np.trapezoid(prec_vals[sorted_indices], recall_vals[sorted_indices])
+    return np.trapz(prec_vals[sorted_indices], recall_vals[sorted_indices])
 
 def AU_ROC(prs_vals):
     """
@@ -142,4 +145,4 @@ def AU_ROC(prs_vals):
     fpr = 1 - spec_vals
 
     sorted_indices = np.argsort(fpr)
-    return np.trapezoid(recall_vals[sorted_indices], fpr[sorted_indices])
+    return np.trapz(recall_vals[sorted_indices], fpr[sorted_indices])
