@@ -117,7 +117,7 @@ def prec_rec_spec(test_res_df,chr_id,tf_id,markov_order):
     return prs_df
 
 
-def AU_PRC(prs_vals):
+def AU_PRC(prs_vals,save=None):
     """
     Calculates Area Under Precision-Recall Curve
     Args:
@@ -132,7 +132,7 @@ def AU_PRC(prs_vals):
     sorted_indices = np.argsort(recall_vals)
     return np.trapz(prec_vals[sorted_indices], recall_vals[sorted_indices])
 
-def AU_ROC(prs_vals):
+def AU_ROC(prs_vals,save=None):
     """
     Calculates Area Under Receiver-Operating Characteristic Curve
     Args:
