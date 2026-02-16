@@ -39,7 +39,7 @@ The code can be executed via the terminal using the command:\
 - `markov_order` has to a number in [0,10].
 
 To run the simpler version of the code: \
-`python3 simplerVersion.py --tf_id [TF_ID] --fasta_path [RELATIVE PATH] --markov_order [M] --tsv_path [RELATIVE FILE PATH] --chr_id [CHR NUMBER]`
+`python3 simplerVersion.py --markov_order [M] --fasta_path [RELATIVE PATH]`
 
 .csv files containing data on sensitivity, specificity, precision will be stored in `/resultsData`.\
 `/projectData` contains FASTA files for the chromosomes as well as bound-unbound information for each chromosome segrated into bins.

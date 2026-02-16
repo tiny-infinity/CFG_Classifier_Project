@@ -1,90 +1,95 @@
-import helper_funcs as hf
-import time
 import argparse
-import os
-import pandas as pd
+import math
+from collections import defaultdict
 
-try:
-    os.mkdir("./SimpleresultData")
-    print("created result data directory")
-except FileExistsError:
-    print("Directory 'SimpleresultData' already exists.")
-except FileNotFoundError:
-    print("Parent directory does not exist.")
-def single_pair_test_simpler(data_set, tf_id, chr_id, fasta_file_path, markov_order):
+def read_fasta(file_path):
+    """Reads a FASTA file and returns a list of sequence strings."""
+    sequences = []
+    with open(file_path, 'r') as f:
+        seq = []
+        for line in f:
+            line = line.strip()
+            if line.startswith(">"):
+                if seq:
+                    sequences.append("".join(seq).upper())
+                    seq = []
+            else:
+                seq.append(line)
+        if seq:
+            sequences.append("".join(seq).upper())
+    return sequences
+
+def train_markov_model(sequences, m):
     """
-    Trains and tests on the same data and returns the scored dataframe. 
+    Trains an order m Markov model on a list of sequences.
+    Returns a dictionary of log2 probabilities.
     """
+    counts = defaultdict(lambda: {'A': 1, 'C': 1, 'G': 1, 'T': 1})
     
-    # TRAINING
-    print(f"--- Processing Order {markov_order} ---")
+    for seq in sequences:
+        for i in range(len(seq) - m):
+            context = seq[i:i+m]
+            next_base = seq[i+m]
+            
+            if next_base in "ACGT" and all(b in "ACGT" for b in context):
+                counts[context][next_base] += 1
+    log_probs = {}
+    for context, next_counts in counts.items():
+        total_transitions = sum(next_counts.values())
+        log_probs[context] = {
+            base: math.log2(count / total_transitions) 
+            for base, count in next_counts.items()
+        }
+        
+    return log_probs
 
-    bound_df = hf.stripped_df(df=data_set, tf_id=tf_id, bclass='B')
-    unbound_df = hf.stripped_df(df=data_set, tf_id=tf_id, bclass='U')
+def score_sequences(sequences, log_probs, m):
+    """
+    Calculates the log-likelihood score for each sequence based on the trained model.
+    """
+    default_log_prob = math.log2(0.25)
     
-    b_matrix = hf.construct_transition_matrix(markov_order=markov_order,
-                                              fasta_file_path=fasta_file_path,
-                                              target_df=bound_df,
-                                              chr_id=chr_id,
-                                              tf_id=tf_id)
-    
-    u_matrix = hf.construct_transition_matrix(markov_order=markov_order,
-                                              fasta_file_path=fasta_file_path,
-                                              target_df=unbound_df,
-                                              chr_id=chr_id,
-                                              tf_id=tf_id)
-    
-    # TESTING
-    print("Beginning Testing...")
-
-    test_res_df = hf.binding_prob_database(markov_order=markov_order,
-                                           tf_data=data_set,
-                                           fasta_file_path=fasta_file_path,
-                                           chr_id=chr_id,
-                                           bmatrix=b_matrix,
-                                           umatrix=u_matrix)
-    
-    return test_res_df
+    for seq in sequences:
+        score = 0.0
+        
+        
+        for i in range(len(seq) - m):
+            context = seq[i:i+m]
+            next_base = seq[i+m]
+            
+            if next_base not in "ACGT" or not all(b in "ACGT" for b in context):
+                continue 
+                
+            if context in log_probs and next_base in log_probs[context]:
+                score += log_probs[context][next_base]
+            else:
+                score += default_log_prob
+                
+        
+        print(score)
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Simpler Version with Markov model")
-
-    parser.add_argument("--tf_id", required=True, help="Transcription factor ID (e.g., REST, EP300, CTCF)")
-    parser.add_argument("--fasta_path", required=True, help="Relative file path for FASTA file")
-    parser.add_argument("--markov_order", type=int, required=True, help="Markov order (0-10)")
+    parser = argparse.ArgumentParser(description="Train and score a FASTA file using a Markov Model.")
+    parser.add_argument("--fasta_file", help="Path to the input FASTA file")
+    parser.add_argument("--m", type=int, help="Order of the Markov Model (m)")
     
-    parser.add_argument("--tsv_path", required=True, help="Relative file path for TSV coordinate file")
-    parser.add_argument("--chr_id", required=True, help="Chromosome ID (e.g., chr4)")
-
     args = parser.parse_args()
-    start_time = time.time()
     
     try:
-        print(f"Loading data from {args.tsv_path}...")
-        data_set = hf.load_tsv_file(args.tsv_path)
+        sequences = read_fasta(args.fasta_file)
         
-        results_df = single_pair_test_simpler(data_set=data_set, 
-                                              tf_id=args.tf_id, 
-                                              chr_id=args.chr_id, 
-                                              fasta_file_path=args.fasta_path, 
-                                              markov_order=args.markov_order)
-        
-        print(f"\n--- Final Log-Likelihood Scores (Order {args.markov_order}) ---")
-        score_col = f'Score_{args.markov_order}'
-        
-        print(results_df[['start', 'end', args.tf_id, score_col]]) 
+        if not sequences:
+            print("Error: No sequences found in the FASTA file.")
+            return
 
-        results_df.to_csv(f"SimpleresultData/simple_m{args.markov_order}{args.chr_id}.csv")
-        print("Results saved in Simpleresultdata")
-
+        log_probs = train_markov_model(sequences, args.m)
         
+        score_sequences(sequences, log_probs, args.m)
+        
+    except FileNotFoundError:
+        print(f"Error: Could not find the file '{args.fasta_file}'")
     except Exception as e:
-        print(f"Error for markov_order={args.markov_order}: {e}")
-        return
-        
-    end_time = time.time()
-    print(f"\nTotal execution time: {round(end_time - start_time, 2)} seconds")
+        print(f"An unexpected error occurred: {e}")
 
 if __name__ == "__main__":
-    
     main()
