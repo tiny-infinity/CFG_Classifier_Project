@@ -33,17 +33,20 @@ For Windows
 
 #### Running the code
 
-The code can be executed via the terminal using the command:
+The code can be executed via the terminal using the command:\
 ```python run_kfold.py --tf_id [TF_ID] --chr_id [CHR NUMBER] --markov_order [M] --kfold [K] --num_cpus [#CORES USED] ```
 - `chr_id` has to be of the form `chr<n>` where n is a number in [1,19].
 - `tf_id` has to one of [REST, EP300, CTCF].
 - `kfold` has to be a number in [1,10].
 - `markov_order` has to a number in [0,10].
 
-.csv files containing data on sensitivity, specificity, precision will be stored in `/resultsData`
+To run the simpler version of the code: \
+`python3 simplerVersion.py --tf_id REST --fasta_path projectData/chr1.fa --markov_order 1 --tsv_path projectData/chr1_200bp_bins.tsv --chr_id chr1`
+
+.csv files containing data on sensitivity, specificity, precision will be stored in `/resultsData`.\
 `/projectData` contains FASTA files for the chromosomes as well as bound-unbound information for each chromosome segrated into bins.
 
-Precision-Recall Curves will be stored in `./PRC_PLOTS` and Receiever-Operator Curves in `./ROC_PLOTS`
+Precision-Recall Curves will be stored in `./PRC_PLOTS` and Receiever-Operator Curves in `./ROC_PLOTS`. 
 
 
 
