@@ -29,7 +29,7 @@ For Linux
 - `gunzip projectData/chr1.fa.gz`
 
 For Windows
-- Reconsider your choices.
+- Install curl and do the same as above.
 
 #### Running the code
 
