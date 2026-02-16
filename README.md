@@ -14,7 +14,7 @@ Python (3.13.7)
 
 #### Data
 
-For the binding data, go to (this link (accesible only if you have been granted Drive access))[https://drive.google.com/drive/folders/1o3VAi95iwPeBb227O_GB8xueUaE_Ri9-?usp=share_link]. Download the projectData folder and move it to your working repository.
+For the binding data, go to [this link (accesible only if you have been granted Drive access](https://drive.google.com/drive/folders/1o3VAi95iwPeBb227O_GB8xueUaE_Ri9-?usp=share_link). Download the projectData folder and move it to your working repository.
 
 Since whole genome data is too huge to upload here, you'll have to download the FASTA files.
 Here's how to do that:
