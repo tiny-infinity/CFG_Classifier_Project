@@ -1,0 +1,6 @@
+*.fa
+*.fa.gz
+*.fai
+.DS_Store
+*PLOTS/
+__pycache__/
