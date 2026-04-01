@@ -4,3 +4,12 @@
 .DS_Store
 *PLOTS/
 __pycache__/
+*.meme
+*FIMO_RESULTS/
+*miniconda3/
+*.bw
+*.joblib
+*.sh
+*sample_fimo_output/
+*demo_output/
+

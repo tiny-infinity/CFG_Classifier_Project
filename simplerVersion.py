@@ -1,9 +1,11 @@
 import argparse
 import math
 from collections import defaultdict
+from tqdm import tqdm
 
 def read_fasta(file_path):
     """Reads a FASTA file and returns a list of sequence strings."""
+    print("Reading FASTA files...")
     sequences = []
     with open(file_path, 'r') as f:
         seq = []
@@ -24,9 +26,10 @@ def train_markov_model(sequences, m):
     Trains an order m Markov model on a list of sequences.
     Returns a dictionary of log2 probabilities.
     """
+    print("Training Markov models...")
     counts = defaultdict(lambda: {'A': 1, 'C': 1, 'G': 1, 'T': 1})
     
-    for seq in sequences:
+    for seq in tqdm(sequences, desc=f"Training Order {m} Model"):
         for i in range(len(seq) - m):
             context = seq[i:i+m]
             next_base = seq[i+m]
@@ -48,8 +51,9 @@ def score_sequences(sequences, log_probs, m):
     Calculates the log-likelihood score for each sequence based on the trained model.
     """
     default_log_prob = math.log2(0.25)
+    print("Scoring Sequences...")
     
-    for seq in sequences:
+    for seq in tqdm(sequences,desc="SCORING SEQUENCES..."):
         score = 0.0
         
         
@@ -70,8 +74,8 @@ def score_sequences(sequences, log_probs, m):
 
 def main():
     parser = argparse.ArgumentParser(description="Train and score a FASTA file using a Markov Model.")
-    parser.add_argument("--fasta_file", help="Path to the input FASTA file")
-    parser.add_argument("--m", type=int, help="Order of the Markov Model (m)")
+    parser.add_argument("--fasta_file", required=True, help="Path to the input FASTA file")
+    parser.add_argument("--m", type=int,required=True, help="Order of the Markov Model (m)")
     
     args = parser.parse_args()
     
