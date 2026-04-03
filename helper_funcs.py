@@ -5,6 +5,7 @@ import pandas as pd
 from pyfaidx import Fasta
 import itertools
 import pyBigWig
+import joblib
 from collections import defaultdict
 
 def load_tsv_file(file_path):
@@ -367,18 +368,33 @@ def assign_global_log_odds(chrom_set,tf_id,markov_order):
     return processed_dfs
         
 
-def build_feature_matrix(chrom_set,tf_id,markov_order):
+def build_feature_matrix(chrom_set,tf_id,markov_order,Bmatrix=None,Umatrix=None):
+    if Bmatrix is None or Umatrix is None: 
+        Bmatrix, Umatrix = build_global_transition_matrix(chrom_set,tf_id,markov_order)
 
-    processed_dfs = assign_global_log_odds(chrom_set, tf_id,markov_order) #returns dictionary of {'chr_id' : 'dataframe with log odds scores'}
+    joblib.dump({'Bmat':Bmatrix,'Umat':Umatrix},f"{tf_id}_transition_matrices.joblib")
+
+    processed_dfs = {}
+    for chr_num in chrom_set:
+        chr_id = f"chr{chr_num}"
+        base_df = pd.read_csv(f"projectData/{chr_id}_200bp_bins.tsv", sep='\t')
+        fasta_path = f"projectData/{chr_id}.fa"
+        
+        processed_dfs[chr_id] = binding_prob_database(
+            markov_order, base_df, tf_id, fasta_path, chr_id, Bmatrix, Umatrix
+        )
+
     final_list = []
 
     for chr_num in chrom_set:
         print(f"Building Features for Chromosome {chr_num}")
-        df_with_fimo = map_fimo_to_bins(fimo_tsv_path=f'projectData/{tf_id}_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv',
+        
+        if tf_id != "EP300":
+            df_with_fimo = map_fimo_to_bins(fimo_tsv_path=f'projectData/{tf_id}_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv',
                                         base_df = processed_dfs[f'chr{chr_num}'],
                                         tf_id=tf_id)
-        processed_dfs[f'chr{chr_num}'] = df_with_fimo #adds column of FIMO scores
-
+            processed_dfs[f'chr{chr_num}'] = df_with_fimo #adds column of FIMO scores
+    
         starts = processed_dfs[f'chr{chr_num}']['start'].tolist()
         ends = processed_dfs[f'chr{chr_num}']['end'].tolist()
 
@@ -391,14 +407,23 @@ def build_feature_matrix(chrom_set,tf_id,markov_order):
         processed_dfs[f'chr{chr_num}'][f'FIMO_{tf_id}'] =  processed_dfs[f'chr{chr_num}'][f'FIMO_{tf_id}'].astype('float32')
         processed_dfs[f'chr{chr_num}'][f'log_odds{tf_id}'] =  processed_dfs[f'chr{chr_num}'][f'log_odds{tf_id}'].astype('float32')
 
-        keep_cols = ['start','end','ATAC',f'log_odds{tf_id}',f'FIMO_{tf_id}','PhastCons',f'{tf_id}']
 
         if tf_id == 'EP300':
             processed_dfs[f'chr{chr_num}'] = map_fimo_to_bins(f'projectData/CTCF_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv', processed_dfs[f'chr{chr_num}'], 'CTCF')
             processed_dfs[f'chr{chr_num}'] = map_fimo_to_bins(f'projectData/REST_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv', processed_dfs[f'chr{chr_num}'], 'REST')
-            processed_dfs[f'chr{chr_num}'] = map_fimo_to_bins(f'projectData/FOXA1_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv', processed_dfs[f'chr{chr_num}'], 'CTCF')
-            processed_dfs[f'chr{chr_num}'] = map_fimo_to_bins(f'projectData/GATA3_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv', processed_dfs[f'chr{chr_num}'], 'REST')
+            processed_dfs[f'chr{chr_num}'] = map_fimo_to_bins(f'projectData/FOXA1_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv', processed_dfs[f'chr{chr_num}'], 'FOXA1')
+            processed_dfs[f'chr{chr_num}'] = map_fimo_to_bins(f'projectData/GATA3_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv', processed_dfs[f'chr{chr_num}'], 'GATA3')
+        
+        if tf_id == 'EP300':
+            keep_cols = ['start', 'end', 'ATAC', f'log_odds{tf_id}', 'PhastCons']
+        else:
+            keep_cols = ['start', 'end', 'ATAC', f'log_odds{tf_id}', f'FIMO_{tf_id}', 'PhastCons']
 
+        if tf_id == 'EP300':
+            keep_cols += ['FIMO_CTCF', 'FIMO_REST', 'FIMO_FOXA1', 'FIMO_GATA3']
+
+        if tf_id in processed_dfs[f'chr{chr_num}'].columns:
+            keep_cols.append(tf_id)
         final_list.append(processed_dfs[f'chr{chr_num}'][keep_cols])
 
     master_df = pd.concat(final_list,axis=0).reset_index(drop=True)

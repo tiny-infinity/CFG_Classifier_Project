@@ -12,4 +12,6 @@ __pycache__/
 *.sh
 *sample_fimo_output/
 *demo_output/
-
+*.tsv.gz
+*.joblib
+*.tsv

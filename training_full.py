@@ -3,9 +3,9 @@ import pandas as pd
 from  sklearn.ensemble import RandomForestClassifier
 import joblib
 
-training_chroms = [1,2,4,5,6,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+training_chroms = [1,2,4,5,6,8,9,11,12,13,14,15,16,7,18,19,20,21,22]
 
-target_tf = 'EP300'
+target_tf = 'CTCF'
 
 order = 5
 

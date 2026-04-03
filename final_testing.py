@@ -1,9 +1,8 @@
 import helper_funcs as hf
 import pandas as pd
 import joblib
-import gzip
 
-def generate_predictions(tf_id, test_chroms=[3, 10, 17], markov_order=1):
+def generate_predictions(tf_id, Bmat, Umat, test_chroms=[3, 10, 17], markov_order=5):
     
     model_path = f"{tf_id}_rf_model.joblib"
     print(f"Loading model: {model_path}...")
@@ -11,11 +10,16 @@ def generate_predictions(tf_id, test_chroms=[3, 10, 17], markov_order=1):
     
     for chrom_num in test_chroms:
         chr_id = f"chr{chrom_num}"
-        print(f"Processing {chr_id}...")
+        print(f"--- Processing {chr_id} ---")
     
-        test_df = hf.build_feature_matrix([chrom_num], tf_id, markov_order)
+        test_df = hf.build_feature_matrix([chrom_num], tf_id, markov_order, Bmatrix=Bmat, Umatrix=Umat)
+        
         
         features = ['ATAC', f'log_odds{tf_id}', f'FIMO_{tf_id}', 'PhastCons']
+        if tf_id == 'EP300':
+            features += ['FIMO_CTCF', 'FIMO_REST', 'FIMO_FOXA1', 'FIMO_GATA3']
+            features.remove['FIMO_EP300']
+
         X_test = test_df[features].copy()
         
         X_test['ATAC'] = X_test['ATAC'].map({'B': 1, 'U': 0})
@@ -31,11 +35,21 @@ def generate_predictions(tf_id, test_chroms=[3, 10, 17], markov_order=1):
         
         output_name = f"{tf_id}_{chr_id}_predictions.tsv.gz"
         submission_df.to_csv(output_name, sep='\t', index=False, compression='gzip')
-        print(f"Saved: {output_name}")
+        print(f"SUCCESS: Saved {output_name}")
 
 if __name__ == "__main__":
-    for tf in ['CTCF', 'REST', 'EP300']:
-        try:
-            generate_predictions(tf)
-        except Exception as e:
-            print(f"Could not generate for {tf}: {e}")
+    target_tf = 'CTCF'
+    order = 5 
+
+    try:
+        print("Loading Transition Matrix")
+        markov_data = joblib.load(f"{target_tf}_transition_matrices.joblib")
+        Bmat = markov_data['Bmat']
+        Umat = markov_data['Umat']
+    except FileNotFoundError:
+        print("Matrices not found. Building Matrix...")
+        train_chrs = [1, 2, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 22]
+        Bmat, Umat = hf.build_global_transition_matrix(train_chrs, target_tf, order)
+        joblib.dump({'Bmat': Bmat, 'Umat': Umat}, f"{target_tf}_transition_matrices.joblib")
+
+    generate_predictions(target_tf, Bmat, Umat, test_chroms=[3, 10, 17], markov_order=order)
