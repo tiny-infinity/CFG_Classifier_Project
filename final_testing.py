@@ -15,10 +15,12 @@ def generate_predictions(tf_id, Bmat, Umat, test_chroms=[3, 10, 17], markov_orde
         test_df = hf.build_feature_matrix([chrom_num], tf_id, markov_order, Bmatrix=Bmat, Umatrix=Umat)
         
         
-        features = ['ATAC', f'log_odds{tf_id}', f'FIMO_{tf_id}', 'PhastCons']
+        
         if tf_id == 'EP300':
-            features += ['FIMO_CTCF', 'FIMO_REST', 'FIMO_FOXA1', 'FIMO_GATA3']
-            features.remove['FIMO_EP300']
+            features = ['ATAC', f'log_odds{tf_id}','FIMO_GATA3','FIMO_FOXA1','FIMO_CTCF', 'FIMO_REST', 'PhastCons']
+        else:
+            features = ['ATAC', f'log_odds{tf_id}', f'FIMO_{tf_id}', 'PhastCons']
+            
 
         X_test = test_df[features].copy()
         
@@ -38,7 +40,7 @@ def generate_predictions(tf_id, Bmat, Umat, test_chroms=[3, 10, 17], markov_orde
         print(f"SUCCESS: Saved {output_name}")
 
 if __name__ == "__main__":
-    target_tf = 'CTCF'
+    target_tf = 'EP300'
     order = 5 
 
     try:

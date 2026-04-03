@@ -388,7 +388,7 @@ def build_feature_matrix(chrom_set,tf_id,markov_order,Bmatrix=None,Umatrix=None)
 
     for chr_num in chrom_set:
         print(f"Building Features for Chromosome {chr_num}")
-        
+
         if tf_id != "EP300":
             df_with_fimo = map_fimo_to_bins(fimo_tsv_path=f'projectData/{tf_id}_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv',
                                         base_df = processed_dfs[f'chr{chr_num}'],
@@ -404,7 +404,9 @@ def build_feature_matrix(chrom_set,tf_id,markov_order,Bmatrix=None,Umatrix=None)
                                                                        chr_id=f'chr{chr_num}')#adds column of PhastCons scores
 
         processed_dfs[f'chr{chr_num}']['PhastCons'] =  processed_dfs[f'chr{chr_num}']['PhastCons'].astype('float32')
-        processed_dfs[f'chr{chr_num}'][f'FIMO_{tf_id}'] =  processed_dfs[f'chr{chr_num}'][f'FIMO_{tf_id}'].astype('float32')
+        if tf_id != 'EP300':
+            processed_dfs[f'chr{chr_num}'][f'FIMO_{tf_id}'] =  processed_dfs[f'chr{chr_num}'][f'FIMO_{tf_id}'].astype('float32')
+    
         processed_dfs[f'chr{chr_num}'][f'log_odds{tf_id}'] =  processed_dfs[f'chr{chr_num}'][f'log_odds{tf_id}'].astype('float32')
 
 
@@ -415,7 +417,7 @@ def build_feature_matrix(chrom_set,tf_id,markov_order,Bmatrix=None,Umatrix=None)
             processed_dfs[f'chr{chr_num}'] = map_fimo_to_bins(f'projectData/GATA3_FIMO_RESULTS/chr{chr_num}_fimo/fimo.tsv', processed_dfs[f'chr{chr_num}'], 'GATA3')
         
         if tf_id == 'EP300':
-            keep_cols = ['start', 'end', 'ATAC', f'log_odds{tf_id}', 'PhastCons']
+            keep_cols = ['start', 'end', 'ATAC', f'log_odds{tf_id}','PhastCons']
         else:
             keep_cols = ['start', 'end', 'ATAC', f'log_odds{tf_id}', f'FIMO_{tf_id}', 'PhastCons']
 

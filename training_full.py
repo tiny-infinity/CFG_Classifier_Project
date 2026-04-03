@@ -5,7 +5,7 @@ import joblib
 
 training_chroms = [1,2,4,5,6,8,9,11,12,13,14,15,16,7,18,19,20,21,22]
 
-target_tf = 'CTCF'
+target_tf = 'EP300'
 
 order = 5
 
@@ -14,8 +14,11 @@ master_df = hf.build_feature_matrix(chrom_set=training_chroms,
                                     markov_order=order,
                                     tf_id=target_tf)
 
-
-X = master_df[['ATAC', f'log_odds{target_tf}', f'FIMO_{target_tf}', 'PhastCons']].copy()
+if target_tf == 'EP300':
+    X = master_df[['ATAC', f'log_odds{target_tf}', 'FIMO_GATA3','FIMO_FOXA1', 'FIMO_CTCF','FIMO_REST','PhastCons']].copy()
+else:
+    X = master_df[['ATAC', f'log_odds{target_tf}', f'FIMO_{target_tf}', 'PhastCons']].copy()
+    
 X['ATAC'] = X['ATAC'].map({'B': 1, 'U': 0}) #Label Encoding
 Y = master_df[target_tf].map({'B': 1, 'U': 0})
 
