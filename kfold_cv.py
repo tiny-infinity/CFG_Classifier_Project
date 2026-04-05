@@ -103,7 +103,7 @@ def single_pair_test(args):
                                            fasta_file_path=fasta_file_path,
                                            chr_id=chr_id,
                                            bmatrix=b_matrix,
-                                           umatrix=u_matrix)
+                                           umatrix=u_matrix,tf_id=tf_id)
     
     prs_vals = testf.prec_rec_spec(test_res_df=test_res_df,
                                   chr_id = chr_id,
