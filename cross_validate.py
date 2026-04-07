@@ -11,6 +11,7 @@ def run_cv(tf_id='EP300', order=5, features_to_use=None):
     train_chrs = [1, 2, 4, 5, 6, 8, 9, 11, 12, 13, 14, 15, 16, 7, 18, 19, 20, 21, 22]
     
     log_odds_col = f'log_odds{tf_id}' 
+
     if features_to_use is None:
         if tf_id == 'EP300':
             features_to_use = ['ATAC', log_odds_col, 'FIMO_GATA3', 'FIMO_FOXA1', 'FIMO_CTCF', 'FIMO_REST', 'PhastCons']
@@ -33,11 +34,13 @@ def run_cv(tf_id='EP300', order=5, features_to_use=None):
         val_df = hf.build_feature_matrix(cv_val, tf_id, order)
 
         X_train = train_df[features_to_use].copy()
-        X_train['ATAC'] = X_train['ATAC'].map({'B': 1, 'U': 0})
+        if 'ATAC' in X_train.columns:
+            X_train['ATAC'] = X_train['ATAC'].map({'B': 1, 'U': 0})
         y_train = train_df[tf_id].map({'B': 1, 'U': 0})
 
         X_val = val_df[features_to_use].copy()
-        X_val['ATAC'] = X_val['ATAC'].map({'B': 1, 'U': 0})
+        if 'ATAC' in X_val.columns:
+            X_val['ATAC'] = X_val['ATAC'].map({'B': 1, 'U': 0})
         y_val = val_df[tf_id].map({'B': 1, 'U': 0})
 
         model = RandomForestClassifier(n_estimators=100, max_depth=12, n_jobs=-1, class_weight='balanced', random_state=42)
@@ -60,14 +63,14 @@ def run_cv(tf_id='EP300', order=5, features_to_use=None):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     
     precision, recall, _ = precision_recall_curve(all_y_true, all_probs)
-    ax1.plot(recall, precision, label=f'Full Model (AUC={np.mean(auprc_scores):.2f})')
+    ax1.plot(recall, precision, label=f'(AUC={np.mean(auprc_scores):.2f})')
     ax1.set_xlabel('Recall')
     ax1.set_ylabel('Precision')
     ax1.set_title('Precision-Recall Curve')
     ax1.legend()
 
     fpr, tpr, _ = roc_curve(all_y_true, all_probs)
-    ax2.plot(fpr, tpr, label=f'Full Model (AUC={np.mean(auroc_scores):.2f})')
+    ax2.plot(fpr, tpr, label=f'(AUC={np.mean(auroc_scores):.2f})')
     ax2.plot([0, 1], [0, 1], 'k--') # Diagonal chance line
     ax2.set_xlabel('False Positive Rate')
     ax2.set_ylabel('True Positive Rate')
@@ -79,4 +82,6 @@ def run_cv(tf_id='EP300', order=5, features_to_use=None):
     plt.show()
 
 if __name__ == "__main__":
-    run_cv(tf_id='EP300')
+    run_cv(tf_id='CTCF',features_to_use=['log_oddsCTCF'])
+    run_cv(tf_id='REST',features_to_use=['log_oddsREST'])
+    
